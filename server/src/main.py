@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import os
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -32,8 +33,6 @@ logger = logging.getLogger(__name__)
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 # OpenRouter slug uses "4.5" (dot), not "4-5". Override with OPENROUTER_MODEL in .env if needed.
 DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-4.5"
-
-_easyocr_reader = None
 
 api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
 user_id_header = APIKeyHeader(name="x-user-id", auto_error=False)
@@ -213,18 +212,86 @@ def _extract_docx(data: bytes) -> str:
         raise HTTPException(status_code=400, detail=f"Failed to read DOCX: {e}") from e
 
 
-def _ocr_image_sync(data: bytes) -> str:
-    global _easyocr_reader
-    import easyocr
-    import numpy as np
+def _normalize_tesseract_cmd_env() -> str:
+    raw = (os.environ.get("TESSERACT_CMD") or "").strip()
+    if not raw:
+        return ""
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'":
+        raw = raw[1:-1].strip()
+    return raw
 
-    if _easyocr_reader is None:
-        _easyocr_reader = easyocr.Reader(["en"], gpu=False)
-    img = Image.open(io.BytesIO(data)).convert("RGB")
-    arr = np.array(img)
-    result = _easyocr_reader.readtext(arr)
-    lines = [item[1] for item in result if item[1]]
-    return "\n".join(lines).strip()
+
+def _windows_tesseract_paths() -> list[Path]:
+    bases: list[str] = []
+    for key in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"):
+        v = (os.environ.get(key) or "").strip()
+        if v:
+            bases.append(v)
+    bases.extend(
+        [
+            r"C:\Program Files",
+            r"C:\Program Files (x86)",
+        ],
+    )
+    seen: set[str] = set()
+    out: list[Path] = []
+    for b in bases:
+        if b.lower() in seen:
+            continue
+        seen.add(b.lower())
+        out.append(Path(b) / "Tesseract-OCR" / "tesseract.exe")
+    return out
+
+
+def _configure_tesseract_executable(pytesseract_mod: Any) -> None:
+    """Set pytesseract.tesseract_cmd from env, PATH, or default Windows install location."""
+    override = _normalize_tesseract_cmd_env()
+    if override:
+        pytesseract_mod.pytesseract.tesseract_cmd = override
+        return
+
+    if shutil.which("tesseract"):
+        return
+
+    if os.name == "nt":
+        for candidate in _windows_tesseract_paths():
+            try:
+                if candidate.is_file():
+                    pytesseract_mod.pytesseract.tesseract_cmd = str(candidate)
+                    logger.info("Using Tesseract at %s", candidate)
+                    return
+            except OSError:
+                continue
+
+    hint_linux = "Install with: apt install tesseract-ocr tesseract-ocr-eng (Debian/Ubuntu)."
+    hint_win = (
+        "Install Tesseract for Windows (e.g. https://github.com/UB-Mannheim/tesseract/wiki ) "
+        "or add it to PATH, or set TESSERACT_CMD to the full path of tesseract.exe ."
+    )
+    hint = hint_win if os.name == "nt" else hint_linux
+    raise RuntimeError(
+        "Tesseract OCR is not installed or not on PATH. "
+        f"{hint}"
+    )
+
+
+def _ocr_image_sync(data: bytes) -> str:
+    """Lightweight OCR via Tesseract (no PyTorch). Install `tesseract-ocr` on the host."""
+    import pytesseract
+
+    _configure_tesseract_executable(pytesseract)
+
+    try:
+        img = Image.open(io.BytesIO(data))
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        text = pytesseract.image_to_string(img, lang="eng")
+    except pytesseract.TesseractNotFoundError as e:
+        raise RuntimeError(
+            "Tesseract failed to run. If the binary moved, set TESSERACT_CMD to tesseract.exe "
+            "(Windows) or `which tesseract` (Linux)."
+        ) from e
+    return (text or "").strip()
 
 
 async def extract_text(file_type: str, data: bytes) -> str:
@@ -235,7 +302,14 @@ async def extract_text(file_type: str, data: bytes) -> str:
         return _extract_docx(data)
     if ft == "image":
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, lambda: _ocr_image_sync(data))
+        try:
+            return await loop.run_in_executor(None, lambda: _ocr_image_sync(data))
+        except RuntimeError as e:
+            logger.warning("OCR failed: %s", e)
+            raise HTTPException(
+                status_code=503,
+                detail=str(e),
+            ) from e
     raise HTTPException(
         status_code=400,
         detail="fileType must be one of: pdf, docx, image",
