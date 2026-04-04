@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from openai import APIError, AsyncOpenAI, AuthenticationError
 from PIL import Image
+from bson import ObjectId
+from bson.errors import InvalidId
 from pydantic import BaseModel, Field
+from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 
 _SERVER_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_SERVER_ROOT / ".env")
@@ -31,6 +36,84 @@ DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-4.5"
 _easyocr_reader = None
 
 api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
+user_id_header = APIKeyHeader(name="x-user-id", auto_error=False)
+
+_mongo_client: MongoClient | None = None
+
+# Stored image payload cap (decoded bytes) to stay under MongoDB 16MB doc limit.
+_MAX_STORED_IMAGE_BYTES = 10 * 1024 * 1024
+
+
+def _validate_image_base64_for_storage(b64: str) -> None:
+    s = (b64 or "").strip()
+    if not s:
+        return
+    try:
+        raw = base64.b64decode(s, validate=False)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid imageBase64: {e}") from e
+    if len(raw) > _MAX_STORED_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image too large for storage (max {_MAX_STORED_IMAGE_BYTES // (1024 * 1024)}MB decoded).",
+        )
+
+
+def _documents_collection():
+    global _mongo_client
+    uri = (os.environ.get("MONGODB_URI") or "").strip()
+    if not uri:
+        raise HTTPException(
+            status_code=503,
+            detail="MONGODB_URI is not configured",
+        )
+    if _mongo_client is None:
+        _mongo_client = MongoClient(uri, serverSelectionTimeoutMS=20000)
+    db_name = (os.environ.get("MONGODB_DB") or "sumdoc").strip() or "sumdoc"
+    return _mongo_client[db_name]["documents"]
+
+
+def _mongo_error_detail(exc: BaseException) -> str:
+    raw = str(exc)
+    low = raw.lower()
+    if "authentication failed" in low or "bad auth" in low:
+        return (
+            f"{raw} "
+            "Atlas rejected the database user/password in MONGODB_URI. "
+            "In Atlas: Database Access — confirm username and reset password if needed, "
+            "then paste the new connection string. "
+            "If the password contains @ # : / ? % use URL encoding in the URI "
+            "(e.g. @ → %40). Restart uvicorn after editing server/.env."
+        )
+    if "replicasetnoprimary" in low or "no replica set members" in low:
+        return (
+            f"{raw} "
+            "Often caused by bad credentials on some cluster nodes; fix MONGODB_URI auth first. "
+            "Also check Atlas Network Access allows your IP (or 0.0.0.0/0 for local dev only)."
+        )
+    return raw
+
+
+def require_user_id(
+    x_user_id: str | None = Depends(user_id_header),
+) -> str:
+    uid = (x_user_id or "").strip()
+    if not uid:
+        raise HTTPException(status_code=401, detail="Missing x-user-id header")
+    return uid
+
+
+def _serialize_document(doc: dict[str, Any]) -> dict[str, Any]:
+    out = dict(doc)
+    oid = out.pop("_id", None)
+    if oid is not None:
+        out["id"] = str(oid)
+    ca = out.get("createdAt")
+    if isinstance(ca, datetime):
+        if ca.tzinfo is None:
+            ca = ca.replace(tzinfo=timezone.utc)
+        out["createdAt"] = ca.astimezone(timezone.utc).isoformat()
+    return out
 
 
 def _normalize_env_secret(raw: str | None) -> str:
@@ -239,6 +322,19 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+class SaveDocumentRequest(BaseModel):
+    userId: str
+    fileName: str
+    fileType: str
+    summary: str
+    entities: dict[str, Any] = Field(default_factory=dict)
+    sentiment: str
+    createdAt: str | None = None
+    extractedText: str = ""
+    suggestedQuestions: list[str] = Field(default_factory=list)
+    imageBase64: str = ""
+
+
 def _assistant_text(message: Any) -> str:
     if message is None:
         return ""
@@ -272,7 +368,7 @@ def _openai_client() -> AsyncOpenAI:
         api_key=key,
         default_headers={
             "HTTP-Referer": "http://localhost:8000",
-            "X-Title": "Document Analyzer",
+            "X-Title": "SumDoc",
         },
     )
 
@@ -432,3 +528,133 @@ async def document_chat(
     except Exception as e:
         logger.exception("document_chat failed")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}") from e
+
+
+@app.post("/api/save-document")
+async def save_document(
+    body: SaveDocumentRequest,
+    _: None = Depends(verify_api_key),
+    x_user_id: str = Depends(require_user_id),
+) -> dict[str, str]:
+    if x_user_id != body.userId.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="userId in body must match x-user-id header",
+        )
+    now = datetime.now(timezone.utc)
+    doc: dict[str, Any] = {
+        "userId": body.userId.strip(),
+        "fileName": body.fileName,
+        "fileType": body.fileType,
+        "summary": body.summary,
+        "entities": body.entities,
+        "sentiment": body.sentiment,
+        "createdAt": now,
+        "extractedText": body.extractedText or "",
+        "suggestedQuestions": list(body.suggestedQuestions or []),
+    }
+    ft = body.fileType.lower().strip()
+    img = (body.imageBase64 or "").strip()
+    if ft == "image" and img:
+        _validate_image_base64_for_storage(img)
+        doc["imageBase64"] = img
+    try:
+        coll = _documents_collection()
+        result = coll.insert_one(doc)
+        return {"status": "success", "id": str(result.inserted_id)}
+    except PyMongoError as e:
+        logger.exception("MongoDB save failed")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not save document: {_mongo_error_detail(e)}",
+        ) from e
+
+
+@app.get("/api/documents")
+async def list_documents(
+    userId: str,
+    _: None = Depends(verify_api_key),
+    x_user_id: str = Depends(require_user_id),
+) -> list[dict[str, Any]]:
+    if x_user_id != userId.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="userId query must match x-user-id header",
+        )
+    try:
+        coll = _documents_collection()
+        cursor = (
+            coll.find({"userId": userId.strip()}, {"imageBase64": 0})
+            .sort("createdAt", -1)
+        )
+        return [_serialize_document(d) for d in cursor]
+    except PyMongoError as e:
+        logger.exception("MongoDB list failed")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not load documents: {_mongo_error_detail(e)}",
+        ) from e
+
+
+@app.get("/api/document/{document_id}")
+async def get_document(
+    document_id: str,
+    userId: str,
+    _: None = Depends(verify_api_key),
+    x_user_id: str = Depends(require_user_id),
+) -> dict[str, Any]:
+    if x_user_id != userId.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="userId query must match x-user-id header",
+        )
+    try:
+        oid = ObjectId(document_id)
+    except InvalidId as e:
+        raise HTTPException(status_code=400, detail="Invalid document id") from e
+    try:
+        coll = _documents_collection()
+        doc = coll.find_one({"_id": oid, "userId": userId.strip()})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return _serialize_document(doc)
+    except HTTPException:
+        raise
+    except PyMongoError as e:
+        logger.exception("MongoDB get document failed")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not load document: {_mongo_error_detail(e)}",
+        ) from e
+
+
+@app.delete("/api/document/{document_id}")
+async def delete_document(
+    document_id: str,
+    userId: str,
+    _: None = Depends(verify_api_key),
+    x_user_id: str = Depends(require_user_id),
+) -> dict[str, str]:
+    if x_user_id != userId.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="userId query must match x-user-id header",
+        )
+    try:
+        oid = ObjectId(document_id)
+    except InvalidId as e:
+        raise HTTPException(status_code=400, detail="Invalid document id") from e
+    try:
+        coll = _documents_collection()
+        result = coll.delete_one({"_id": oid, "userId": userId.strip()})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return {"status": "success"}
+    except HTTPException:
+        raise
+    except PyMongoError as e:
+        logger.exception("MongoDB delete failed")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not delete document: {_mongo_error_detail(e)}",
+        ) from e

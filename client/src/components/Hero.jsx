@@ -22,8 +22,8 @@ const heroCss = `
 `
 
 export default function Hero() {
-  function scrollToUpload() {
-    document.getElementById('upload-section')?.scrollIntoView({
+  function scrollToFeatures() {
+    document.getElementById('features')?.scrollIntoView({
       behavior: 'smooth',
     })
   }
@@ -98,19 +98,19 @@ export default function Hero() {
           SumDoc
         </p>
 
-        <h1 className="font-heading mt-3 text-5xl font-extrabold leading-[1.06] tracking-tight text-gray-900 md:text-6xl md:leading-[1.05]">
-          Analyze any document,{' '}
+        <h1 className="font-heading mt-3 text-4xl font-extrabold leading-[1.08] tracking-tight text-gray-900 sm:text-5xl md:text-6xl md:leading-[1.05]">
+          Summarize and analyze any document,{' '}
           <span className="text-[#2563eb]">instantly</span>
         </h1>
 
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-gray-600 md:text-lg">
-          Upload a PDF, Word doc, or image and get AI-powered summaries, entity
-          extraction, and sentiment analysis in seconds.
+          SumDoc turns PDFs, Word files, and images into clear summaries, smart
+          entity cards, and sentiment insights in seconds.
         </p>
 
         <div className="mt-10 flex flex-col items-stretch justify-center gap-4 sm:flex-row sm:items-center sm:justify-center">
           <a
-            href="#upload-section"
+            href="/dashboard"
             className="inline-flex items-center justify-center rounded-full bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-gray-800"
           >
             Get started free
@@ -126,11 +126,11 @@ export default function Hero() {
         <div className="mt-12 flex flex-col items-center gap-2">
           <button
             type="button"
-            onClick={scrollToUpload}
+            onClick={scrollToFeatures}
             className="group flex flex-col items-center gap-2 text-gray-500 transition hover:text-gray-800"
           >
             <span className="text-xs font-medium sm:text-sm">
-              Scroll down to analyze your document
+              Scroll to explore features
             </span>
             <ChevronDown
               className="hero-scroll-chevron h-6 w-6 text-[#2563eb] group-hover:text-[#1d4ed8]"

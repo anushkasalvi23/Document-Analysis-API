@@ -69,6 +69,122 @@ export async function postAnalyze(body) {
   return data
 }
 
+export async function postSaveDocument(userId, body) {
+  if (!API_KEY) {
+    throw new Error(MISSING_KEY_MSG)
+  }
+  const uid = String(userId || '').trim()
+  if (!uid) throw new Error('Not signed in.')
+  const res = await fetch(`${API_BASE}/api/save-document`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'x-user-id': uid,
+    },
+    body: JSON.stringify({ ...body, userId: uid }),
+  })
+  let data = {}
+  try {
+    data = await res.json()
+  } catch {
+    /* ignore */
+  }
+  if (!res.ok) {
+    throw new Error(formatApiError(data.detail))
+  }
+  return data
+}
+
+export async function fetchDocuments(userId) {
+  if (!API_KEY) {
+    throw new Error(MISSING_KEY_MSG)
+  }
+  const uid = String(userId || '').trim()
+  if (!uid) throw new Error('Not signed in.')
+  const q = new URLSearchParams({ userId: uid })
+  const res = await fetch(`${API_BASE}/api/documents?${q}`, {
+    headers: {
+      'x-api-key': API_KEY,
+      'x-user-id': uid,
+    },
+  })
+  let data = {}
+  try {
+    data = await res.json()
+  } catch {
+    /* ignore */
+  }
+  if (!res.ok) {
+    throw new Error(formatApiError(data.detail))
+  }
+  if (!Array.isArray(data)) {
+    return []
+  }
+  return data
+}
+
+export async function fetchDocumentById(userId, documentId) {
+  if (!API_KEY) {
+    throw new Error(MISSING_KEY_MSG)
+  }
+  const uid = String(userId || '').trim()
+  if (!uid) throw new Error('Not signed in.')
+  const id = String(documentId || '').trim()
+  if (!id) throw new Error('Missing document id.')
+  const q = new URLSearchParams({ userId: uid })
+  const res = await fetch(
+    `${API_BASE}/api/document/${encodeURIComponent(id)}?${q}`,
+    {
+      headers: {
+        'x-api-key': API_KEY,
+        'x-user-id': uid,
+      },
+    },
+  )
+  let data = {}
+  try {
+    data = await res.json()
+  } catch {
+    /* ignore */
+  }
+  if (!res.ok) {
+    throw new Error(formatApiError(data.detail))
+  }
+  return data
+}
+
+export async function deleteDocument(userId, documentId) {
+  if (!API_KEY) {
+    throw new Error(MISSING_KEY_MSG)
+  }
+  const uid = String(userId || '').trim()
+  if (!uid) throw new Error('Not signed in.')
+  const id = String(documentId || '').trim()
+  if (!id) throw new Error('Missing document id.')
+  const q = new URLSearchParams({ userId: uid })
+  const res = await fetch(
+    `${API_BASE}/api/document/${encodeURIComponent(id)}?${q}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'x-api-key': API_KEY,
+        'x-user-id': uid,
+      },
+    },
+  )
+  let data = {}
+  try {
+    data = await res.json()
+  } catch {
+    /* ignore */
+  }
+  if (!res.ok) {
+    throw new Error(formatApiError(data.detail))
+  }
+  return data
+}
+
 export async function postChat(message, documentText) {
   if (!API_KEY) {
     throw new Error(MISSING_KEY_MSG)
