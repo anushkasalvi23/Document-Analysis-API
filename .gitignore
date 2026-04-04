@@ -1,0 +1,56 @@
+# SumDoc — HCL GUVI project (client + server)
+
+# Dependencies
+**/node_modules/
+
+# Environment & secrets — always commit .env.example (template), never real .env
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Client (Vite / React)
+client/dist
+client/dist-ssr
+client/.vite
+*.local
+
+# Server (Python)
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# Logs & debug
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
