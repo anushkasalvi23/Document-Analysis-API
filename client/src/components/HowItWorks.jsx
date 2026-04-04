@@ -26,7 +26,8 @@ export default function HowItWorks() {
           As simple as 1, 2, 3
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-center text-lg text-gray-600">
-          From file to insight in three clear steps.
+          SumDoc: summarize and analyze any document, instantly—in three clear
+          steps.
         </p>
 
         <div className="mx-auto mt-16 hidden max-w-5xl items-start md:flex">

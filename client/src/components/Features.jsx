@@ -48,11 +48,11 @@ export default function Features() {
     >
       <div className="mx-auto max-w-6xl">
         <h2 className="text-center font-heading text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl lg:text-5xl">
-          Everything you need to analyze documents
+          Why teams choose SumDoc
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-center text-lg text-gray-600">
-          One platform for summaries, structured data, and insight—without the
-          busywork.
+          Summarize and analyze any document, instantly—summaries, structured
+          data, and insight without the busywork.
         </p>
         <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {items.map(({ icon: Icon, title, desc }) => (

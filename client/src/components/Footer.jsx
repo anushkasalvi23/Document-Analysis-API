@@ -4,7 +4,7 @@ const columns = [
     links: [
       { label: 'Features', href: '#features' },
       { label: 'Pricing', href: '#pricing' },
-      { label: 'Analyze', href: '#upload-section' },
+      { label: 'Dashboard', href: '/dashboard' },
     ],
   },
   {
@@ -35,8 +35,8 @@ export default function Footer() {
               SumDoc
             </p>
             <p className="mt-3 text-sm leading-relaxed text-gray-600">
-              AI-powered summaries, entity extraction, and sentiment for PDFs,
-              Word files, and images—built for teams who live in documents.
+              Summarize and analyze any document, instantly—PDFs, Word, and
+              images with summaries, entities, and sentiment.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-10 sm:grid-cols-3 lg:gap-16">

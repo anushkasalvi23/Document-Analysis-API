@@ -1,27 +1,17 @@
-import Navbar from './components/Navbar.jsx'
-import Hero from './components/Hero.jsx'
-import UploadSection from './components/UploadSection.jsx'
-import Features from './components/Features.jsx'
-import HowItWorks from './components/HowItWorks.jsx'
-import Testimonials from './components/Testimonials.jsx'
-import Pricing from './components/Pricing.jsx'
-import CtaSection from './components/CtaSection.jsx'
-import Footer from './components/Footer.jsx'
+import { Route, Routes } from 'react-router-dom'
+import DashboardPage from './pages/DashboardPage.jsx'
+import LandingPage from './pages/LandingPage.jsx'
+import SignInPage from './pages/SignInPage.jsx'
+import SignUpPage from './pages/SignUpPage.jsx'
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-white text-gray-900 antialiased">
-      <Navbar />
-      <main>
-        <Hero />
-        <UploadSection />
-        <Features />
-        <HowItWorks />
-        <Testimonials />
-        <Pricing />
-        <CtaSection />
-      </main>
-      <Footer />
-    </div>
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      {/* Clerk uses nested paths (e.g. /sign-up/verify-email-address) — splat required */}
+      <Route path="/sign-in/*" element={<SignInPage />} />
+      <Route path="/sign-up/*" element={<SignUpPage />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
+    </Routes>
   )
 }

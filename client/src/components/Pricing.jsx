@@ -9,11 +9,11 @@ const tiers = [
       'Basic summary',
     ],
     cta: 'Get started',
-    href: '#upload-section',
+    href: '/dashboard',
     highlight: false,
   },
   {
-    name: 'Pro',
+    name: 'SumDoc Pro',
     price: '$19',
     period: '/month',
     features: [
@@ -23,8 +23,8 @@ const tiers = [
       'Sentiment analysis',
       'Priority processing',
     ],
-    cta: 'Start Pro trial',
-    href: '#upload-section',
+    cta: 'Start SumDoc Pro trial',
+    href: '/dashboard',
     highlight: true,
   },
   {
@@ -32,7 +32,7 @@ const tiers = [
     price: 'Custom',
     period: '',
     features: [
-      'Everything in Pro',
+      'Everything in SumDoc Pro',
       'API access',
       'Custom integrations',
       'Dedicated support',
