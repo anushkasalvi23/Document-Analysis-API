@@ -25,12 +25,6 @@
 SumDoc is a full-stack web application that turns long documents into quick, usable insight. Upload a PDF, Word document, or image and SumDoc extracts the text (using OCR for images), then uses an LLM to generate a summary, named entities, sentiment, and suggested questions. You can ask follow-up questions about the document and, when signed in, save every analysis to a personal library.
 
 ## 📸 Screenshots
-
-### Dashboard home and document upload
-![SumDoc dashboard home page with document upload and URL input](<Screenshots/Screenshot 2026-10-04 214957.png>)
-
-> This capture shows the upload screen, but also includes a temporary “Failed to fetch” message in the sidebar. Replace it with a clean capture before using it in a public presentation.
-
 ### Analysis results
 ![SumDoc document summary, sentiment, and extracted entities](<Screenshots/Screenshot 2026-10-04 215032.png>)
 
