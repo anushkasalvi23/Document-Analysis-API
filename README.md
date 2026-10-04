@@ -26,6 +26,11 @@ SumDoc is a full-stack web application that turns long documents into quick, usa
 
 ## 📸 Screenshots
 
+### Dashboard home and document upload
+![SumDoc dashboard home page with document upload and URL input](<Screenshots/Screenshot 2026-10-04 214957.png>)
+
+> This capture shows the upload screen, but also includes a temporary “Failed to fetch” message in the sidebar. Replace it with a clean capture before using it in a public presentation.
+
 ### Analysis results
 ![SumDoc document summary, sentiment, and extracted entities](<Screenshots/Screenshot 2026-10-04 215032.png>)
 
@@ -254,7 +259,7 @@ Contributions are welcome.
 
 ## 📜 License
 
-Add a `LICENSE` file to the repository (for example, MIT) and update this section to match.
+No `LICENSE` file is currently included in this repository, so the project has no explicit open-source license. Contact the author for permission to use, modify, or distribute this project. Add a license file if you intend to grant those permissions.
 
 ## 👩‍💻 Author
 
